@@ -379,18 +379,33 @@
             };
             document.getElementById('speciesLabel').innerText = `${spNames[sp]} | ${ssp} (${yr})`;
 
-            // 기존 오버레이 제거
+            // 1. 기존 오버레이 제거
             if (currentOverlay) {
                 map.removeLayer(currentOverlay);
+                currentOverlay = null;
             }
-            
-            // Base64 내장 데이터를 우선 사용 (경로 에러 및 물음표 원천 차단)
-            const imgSrc = condData.image_data || condData.image_url;
 
-            currentOverlay = L.imageOverlay(imgSrc, dbData.bounds, {
-                opacity: 0.85,
-                interactive: false
-            }).addTo(map);
+            // 2. [모바일 전용 핵심]: 캐시 버스팅 타임스탬프 부여 (?t=xxxx)
+            // 모바일 브라우저가 기존에 저장한 깨진 이미지 캐시를 무시하고 무조건 새로 다운로드하도록 강제함
+            const timestamp = new Date().getTime();
+            const targetUrl = baseUrl + condData.image_url + '?t=' + timestamp;
+
+            // 3. 모바일 이미지 프리로딩 검증 (깨짐 발생 시 원인 즉시 파악)
+            const testImg = new Image();
+            testImg.onload = function() {
+                // 이미지가 정상 로드되었을 때만 Leaflet 오버레이 생성
+                currentOverlay = L.imageOverlay(targetUrl, dbData.bounds, {
+                    opacity: 0.85,
+                    interactive: false,
+                    crossOrigin: true
+                }).addTo(map);
+            };
+            testImg.onerror = function(err) {
+                // 만약 모바일에서 경로를 못 찾는 경우 화면 안내 카드에 에러 주소 출력
+                document.getElementById('speciesLabel').innerText = "이미지 로드 실패 (경로 확인 필요)";
+                console.error("Mobile Image Load Error:", targetUrl);
+            };
+            testImg.src = targetUrl;
         }
     </script>
 </body>
