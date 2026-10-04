@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>기후변화가 상어를 어디까지 올라가게 할까?</title>
+    
+    <!-- Pretendard Font -->
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    
+    <!-- Leaflet GIS CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root {
+            --bg-base: #0B1120;
+            --bg-panel: #131E32;
+            --bg-card: #182640;
+            --border: #233554;
+            --text-main: #F1F5F9;
+            --text-muted: #94A3B8;
+            --accent-cyan: #38BDF8;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Header */
+        header {
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+        }
+        .brand h1 {
+            font-size: 1.2rem;
+            font-weight: 800;
+            background: linear-gradient(90deg, #38BDF8, #F87171);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .brand p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Simulator Controllers */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-card);
+            padding: 6px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+        .ctrl-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .ctrl-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        select {
+            background: #0F172A;
+            color: var(--text-main);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            outline: none;
+        }
+        select:focus { border-color: var(--accent-cyan); }
+
+        /* Map Viewport */
+        #map-container {
+            flex: 1;
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #070B14;
+        }
+
+        /* Information Floating Card */
+        .info-card {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(19, 30, 50, 0.9);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 20px;
+            min-width: 280px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+        }
+        .info-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .info-species {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: #FFF;
+            margin: 4px 0 8px 0;
+        }
+        .info-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* Modern Legend */
+        .legend-card {
+            position: absolute;
+            bottom: 25px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(19, 30, 50, 0.9);
+            backdrop-filter: blur(8px);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 18px;
+            font-size: 0.8rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+        .legend-title {
+            font-weight: 700;
+            margin-bottom: 2px;
+            color: #F8FAFC;
+        }
+        .legend-gradient {
+            width: 200px;
+            height: 12px;
+            border-radius: 4px;
+            background: linear-gradient(to right, rgba(0,0,0,0) 0%, #3B82F6 20%, #F59E0B 50%, #EF4444 80%, #990000 100%);
+            margin: 8px 0 4px 0;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .legend-labels {
+            display: flex;
+            justify-content: space-between;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Controls -->
+    <header>
+        <div class="brand">
+    <h1>기후변화가 상어를 어디까지 올라가게 할까?</h1>
+    <p>CMIP6 고해상도(500m) SDM 앙상블 기반 한반도 연안 출현 위험 시뮬레이터</p>
+</div>
+
+        <div class="controls">
+            <div class="ctrl-group">
+                <label>어종:</label>
+                <select id="speciesSelect">
+                    <option value="Carcharhinus brachyurus">무태상어 (연안성 위험종)</option>
+                    <option value="Isurus oxyrinchus">청상아리 (외양성 공격종)</option>
+                    <option value="Prionace glauca">청새리상어 (광온성 대형종)</option>
+                </select>
+            </div>
+
+            <div class="ctrl-group">
+                <label>시나리오:</label>
+                <select id="sspSelect">
+                    <option value="SSP5-8.5">SSP5-8.5 (고탄소 지속)</option>
+                    <option value="SSP1-2.6">SSP1-2.6 (탄소감축 실현)</option>
+                    <option value="Present">Present (현재 기준)</option>
+                </select>
+            </div>
+
+            <div class="ctrl-group">
+                <label>연도:</label>
+                <select id="yearSelect">
+                    <option value="2050s">2050년대 (2050s)</option>
+                    <option value="2100s">2100년대 (2100s)</option>
+                    <option value="Present">현재</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <!-- Map Viewport -->
+    <div id="map-container">
+        <div id="map"></div>
+
+        <!-- Floating Info Box -->
+        <div class="info-card">
+            <div class="info-title">Selected Model State</div>
+            <div class="info-species" id="speciesLabel">-</div>
+            <div class="info-desc">
+                • 붉은색 영역이 짙을수록 서식 적합도(HSI) 및 출현 가능성이 높습니다.<br>
+                • 연안선 및 수심 윤곽을 따라 변화하는 위험대를 확인하세요.
+            </div>
+        </div>
+
+        <!-- Legend -->
+        <div class="legend-card">
+            <div class="legend-title">서식 적합도 (Ensemble HSI)</div>
+            <div class="legend-gradient"></div>
+            <div class="legend-labels">
+                <span>0.0 (낮음)</span>
+                <span>0.35</span>
+                <span>0.7+ (매우 높음)</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dbData = null;
+        let map;
+        let currentOverlay = null;
+
+        // 1. 지도 초기화 (글로벌 표준 OpenStreetMap)
+        map = L.map('map', {
+            center: [36.2, 128.5],
+            zoom: 7,
+            minZoom: 6,
+            maxZoom: 11
+        });
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 18,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 2. 메타데이터 로드
+        fetch('frontier_dashboard_data.json')
+            .then(res => {
+                if(!res.ok) throw new Error("JSON 파일을 찾을 수 없습니다.");
+                return res.json();
+            })
+            .then(data => {
+                dbData = data;
+                initEvents();
+                updateLayer();
+            })
+            .catch(err => {
+                console.error("데이터 로드 실패:", err);
+            });
+
+        function initEvents() {
+            document.getElementById('speciesSelect').addEventListener('change', updateLayer);
+            document.getElementById('sspSelect').addEventListener('change', onScenarioChange);
+            document.getElementById('yearSelect').addEventListener('change', updateLayer);
+        }
+
+        function onScenarioChange() {
+            const ssp = document.getElementById('sspSelect').value;
+            const yearSel = document.getElementById('yearSelect');
+            if (ssp === 'Present') {
+                yearSel.value = 'Present';
+                yearSel.disabled = true;
+            } else {
+                yearSel.disabled = false;
+                if (yearSel.value === 'Present') yearSel.value = '2050s';
+            }
+            updateLayer();
+        }
+
+        // 3. HSI 그라데이션 래스터만 교체 렌더링
+        function updateLayer() {
+            if (!dbData) return;
+
+            const sp = document.getElementById('speciesSelect').value;
+            let ssp = document.getElementById('sspSelect').value;
+            let yr = document.getElementById('yearSelect').value;
+
+            if (ssp === 'Present' || yr === 'Present') {
+                ssp = 'Present';
+                yr = 'Present';
+            }
+
+            const condKey = `${ssp}_${yr}`;
+            const condData = dbData.conditions[sp][condKey];
+            if (!condData) return;
+
+            const spNames = {
+                "Carcharhinus brachyurus": "무태상어 (Copper Shark)",
+                "Isurus oxyrinchus": "청상아리 (Shortfin Mako)",
+                "Prionace glauca": "청새리상어 (Blue Shark)"
+            };
+            document.getElementById('speciesLabel').innerText = `${spNames[sp]} [${ssp} ${yr}]`;
+
+            // 래스터 오버레이 교체
+            if (currentOverlay) {
+                map.removeLayer(currentOverlay);
+            }
+            currentOverlay = L.imageOverlay(condData.image_url, dbData.bounds, {
+                opacity: 0.85,
+                interactive: false
+            }).addTo(map);
+        }
+    </script>
+</body>
+</html>
