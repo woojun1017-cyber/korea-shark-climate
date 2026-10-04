@@ -379,10 +379,15 @@
             };
             document.getElementById('speciesLabel').innerText = `${spNames[sp]} | ${ssp} (${yr})`;
 
+            // 기존 오버레이 제거
             if (currentOverlay) {
                 map.removeLayer(currentOverlay);
             }
-            currentOverlay = L.imageOverlay(condData.image_url, dbData.bounds, {
+            
+            // Base64 내장 데이터를 우선 사용 (경로 에러 및 물음표 원천 차단)
+            const imgSrc = condData.image_data || condData.image_url;
+
+            currentOverlay = L.imageOverlay(imgSrc, dbData.bounds, {
                 opacity: 0.85,
                 interactive: false
             }).addTo(map);
